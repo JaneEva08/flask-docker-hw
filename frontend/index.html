@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flask в Docker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=Unbounded:wght@600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --plum: #4B3F5C;
+      --plum-deep: #2A2233;
+      --mist: #F1EEF6;
+      --lime: #C6F36B;
+      --line: #D9D3E3;
+      --bad: #B3261E;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Manrope, system-ui, sans-serif;
+      background: var(--mist);
+      color: var(--plum-deep);
+    }
+    header {
+      background: var(--plum);
+      color: var(--mist);
+      padding: 28px 16px 24px;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; }
+    h1 {
+      font-family: Unbounded, Manrope, sans-serif;
+      font-weight: 600;
+      font-size: clamp(22px, 4vw, 30px);
+      margin: 0 0 6px;
+    }
+    header p { margin: 0; opacity: .85; }
+    main { padding: 20px 16px 40px; }
+    .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+    .card h2 { font-size: 17px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #bbb; }
+    .dot.ok { background: #3FA34D; }
+    .dot.bad { background: var(--bad); }
+    button {
+      font: inherit; font-weight: 700;
+      background: var(--lime); color: var(--plum-deep);
+      border: 0; border-radius: 10px; padding: 10px 16px; cursor: pointer;
+    }
+    button:hover { filter: brightness(.95); }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    input, select {
+      font: inherit; padding: 9px 10px; border: 1px solid var(--line);
+      border-radius: 10px; background: #fff; color: var(--plum-deep);
+      width: 110px;
+    }
+    select { width: auto; }
+    pre {
+      margin: 12px 0 0; padding: 12px; border-radius: 10px;
+      background: var(--mist); font-size: 13px; overflow-x: auto;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    pre.error { color: var(--bad); }
+    .result { font-size: 20px; font-weight: 700; margin-top: 12px; min-height: 1.4em; }
+    .stamp {
+      display: inline-block; margin-top: 12px; padding: 4px 10px; border-radius: 6px;
+      background: var(--lime); color: var(--plum-deep); font-size: 12px; font-weight: 700;
+      letter-spacing: .04em;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>Flask в Docker</h1>
+      <p>Фронтенд на nginx, запросы к бэкенду идут через /api/</p>
+      <span class="stamp">✓ ПРОТЕСТИРОВАНО</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card">
+      <h2><span class="dot" id="healthDot"></span> Состояние бэкенда</h2>
+      <button id="healthBtn">Проверить</button>
+      <pre id="healthOut">Ещё не проверяли</pre>
+    </section>
+
+    <section class="card">
+      <h2>Информация о контейнере</h2>
+      <button id="infoBtn">Получить</button>
+      <pre id="infoOut">—</pre>
+    </section>
+
+    <section class="card">
+      <h2>Калькулятор</h2>
+      <form class="row" id="calcForm">
+        <input id="a" value="10" aria-label="Первое число" inputmode="decimal">
+        <select id="op" aria-label="Операция">
+          <option value="add">+</option>
+          <option value="sub">−</option>
+          <option value="mul">×</option>
+          <option value="div">÷</option>
+        </select>
+        <input id="b" value="4" aria-label="Второе число" inputmode="decimal">
+        <button type="submit">Посчитать</button>
+      </form>
+      <div class="result" id="calcOut"></div>
+    </section>
+  </main>
+
+  <script>
+    // Все запросы идут на тот же адрес, что и страница: /api/... → nginx → backend:5000
+    async function api(path) {
+      const res = await fetch('/api' + path);
+      const data = await res.json().catch(() => ({ error: 'Ответ не JSON' }));
+      return { ok: res.ok, data };
+    }
+
+    function show(el, payload, isError) {
+      el.textContent = JSON.stringify(payload, null, 2);
+      el.classList.toggle('error', Boolean(isError));
+    }
+
+    const healthDot = document.getElementById('healthDot');
+
+    async function checkHealth() {
+      const out = document.getElementById('healthOut');
+      try {
+        const { ok, data } = await api('/health');
+        show(out, data, !ok);
+        healthDot.className = 'dot ' + (ok ? 'ok' : 'bad');
+      } catch (e) {
+        show(out, { error: 'Бэкенд недоступен', detail: String(e) }, true);
+        healthDot.className = 'dot bad';
+      }
+    }
+
+    document.getElementById('healthBtn').addEventListener('click', checkHealth);
+
+    document.getElementById('infoBtn').addEventListener('click', async () => {
+      const out = document.getElementById('infoOut');
+      try {
+        const { ok, data } = await api('/info');
+        show(out, data, !ok);
+      } catch (e) {
+        show(out, { error: 'Бэкенд недоступен', detail: String(e) }, true);
+      }
+    });
+
+    document.getElementById('calcForm').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const out = document.getElementById('calcOut');
+      const a = encodeURIComponent(document.getElementById('a').value.trim() || ' ');
+      const b = encodeURIComponent(document.getElementById('b').value.trim() || ' ');
+      const op = document.getElementById('op').value;
+      try {
+        const { ok, data } = await api(`/calc/${a}/${b}?op=${op}`);
+        out.textContent = ok ? data.expression : '⚠ ' + data.error;
+        out.style.color = ok ? '' : 'var(--bad)';
+      } catch (e) {
+        out.textContent = '⚠ Бэкенд недоступен';
+        out.style.color = 'var(--bad)';
+      }
+    });
+
+    checkHealth();
+  </script>
+</body>
+</html>

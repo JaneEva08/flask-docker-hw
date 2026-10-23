@@ -1,0 +1,19 @@
+# Секреты и данные никогда не попадают в образ
+.env
+.env.*
+*.db
+*.sqlite3
+data/
+
+# Служебное — образу не нужно
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+requirements-dev.txt
+.git
+.venv/
+venv/
+Dockerfile
+.dockerignore
+pytest.ini
